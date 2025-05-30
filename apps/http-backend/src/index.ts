@@ -47,7 +47,7 @@ app.post("/signup", async (req, res) => {
 app.post("/signin", async (req, res) => {
   try {
     const parsedData = SigninSchema.safeParse(req.body);
-    console.log(parsedData);
+    //console.log(parsedData);
     if (!parsedData.success) {
       throw new Error("invalid inputs");
     }
@@ -57,7 +57,7 @@ app.post("/signin", async (req, res) => {
         email: parsedData.data.email,
       },
     });
-    console.log(user);
+    //console.log(user);
     if (!user) {
       throw new Error("user does not exist");
     }
@@ -66,7 +66,7 @@ app.post("/signin", async (req, res) => {
       parsedData.data.password,
       user?.password
     );
-    console.log("decoded : ", decodedPassword);
+    //console.log("decoded : ", decodedPassword);
     if (!decodedPassword) {
       throw new Error("incorrecct password");
     }
@@ -94,22 +94,70 @@ app.post("/room", middleware, async (req, res) => {
     }
     //@ts-ignore
     const userId = req.userId;
-    const room = await prismaClient.room.create({
-      data: {
-        slug: parsedData.data.name,
-        adminId: userId,
-      },
-    });
-    if (!room) {
-      throw new Error("error in room creation ");
+    try {
+      const room = await prismaClient.room.create({
+        data: {
+          slug: parsedData.data.name,
+          adminId: userId,
+        },
+      });
+      if (!room) {
+        throw new Error("error in room creation ");
+      }
+      res.status(200).json({
+        message: "room created sucessfully",
+        data: room,
+      });
+    } catch (error: unknown) {
+      if (error) {
+        //@ts-ignore
+        if (error.code === "P2002") {
+          res.status(400).json({ message: "Room name must be unique" });
+          return;
+        }
+      }
+
+      res
+        .status(500)
+        .json({ message: "Internal server error", error: String(error) });
     }
-    res.status(200).json({
-      message: "room created sucessfully",
-      data: room,
+  } catch (error) {
+    res.status(400).json("cougth here");
+  }
+});
+
+app.get("/chats/:roomId", async (req, res) => {
+  const roomId = Number(req.params.roomId);
+  console.log(roomId);
+  try {
+    const message = await prismaClient.chat.findMany({
+      where: {
+        roomId: roomId,
+      },
+      orderBy: {
+        id: "desc",
+      },
+      take: 50,
+    });
+    res.json({
+      message,
     });
   } catch (error) {
-    res.status(400).json("somthing went wrong " + error);
+    console.log(error);
   }
+});
+
+app.get("/room/:slug", async (req, res) => {
+  const slug = req.params.slug;
+  //console.log(slug);
+  const room = await prismaClient.room.findFirst({
+    where: {
+      slug,
+    },
+  });
+  res.json({
+    room,
+  });
 });
 
 app.listen(3001);
